@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.venv/
+*.egg-info/
+
+# Backend data (generated/cached files)
+backend/data/downloads/
+backend/data/separated/
+backend/data/transcriptions/
+backend/data/pitch/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+
+# Audio files (large, generated)
+*.wav
+*.mp3
+*.m4a
+*.ogg
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Torch/model cache
+*.pt
+*.pth
+*.bin
+
+# Claude
+.claude/
