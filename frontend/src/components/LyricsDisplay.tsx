@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import type { LyricSegment } from "../types";
 
 const SPEAKER_COLORS = ["#4a4ae8", "#e84aad", "#4ae89a", "#e8c84a"];
@@ -6,6 +7,8 @@ interface Props {
   lyrics: LyricSegment[];
   currentSegmentIndex: number;
   currentWordIndex: number;
+  displaySegmentIndex: number;
+  isInGap: boolean;
   language: string;
   isPlaying?: boolean;
   currentTime?: number;
@@ -15,56 +18,55 @@ export default function LyricsDisplay({
   lyrics,
   currentSegmentIndex,
   currentWordIndex,
+  displaySegmentIndex,
+  isInGap,
   language,
   isPlaying = false,
   currentTime = 0,
 }: Props) {
-  // When no segment is active, find the next upcoming segment
-  const isInGap = currentSegmentIndex === -1 && lyrics.length > 0;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeLineRef = useRef<HTMLDivElement>(null);
 
-  let nextSegment: LyricSegment | null = null;
-  let timeUntilNext = 0;
-  if (isInGap && isPlaying) {
-    for (const seg of lyrics) {
-      if (seg.start > currentTime) {
-        nextSegment = seg;
-        timeUntilNext = Math.ceil(seg.start - currentTime);
-        break;
+  // Smooth scroll to the active line
+  useEffect(() => {
+    if (activeLineRef.current && containerRef.current) {
+      activeLineRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [displaySegmentIndex]);
+
+  // The anchor index for visible lyrics: use active segment, or display segment during gaps
+  const anchorIndex = currentSegmentIndex >= 0 ? currentSegmentIndex : displaySegmentIndex;
+
+  // Show a window of lines around the anchor
+  const WINDOW_BEFORE = 2;
+  const WINDOW_AFTER = 4;
+  const start = Math.max(0, anchorIndex - WINDOW_BEFORE);
+  const end = Math.min(lyrics.length, anchorIndex + WINDOW_AFTER);
+  const visibleLyrics = lyrics.length > 0 ? lyrics.slice(start, end) : [];
+
+  // Small countdown for gaps
+  let countdownText = "";
+  if (isInGap && isPlaying && lyrics.length > 0 && displaySegmentIndex < lyrics.length) {
+    const nextSeg = lyrics[displaySegmentIndex];
+    if (nextSeg && nextSeg.start > currentTime) {
+      const secs = Math.ceil(nextSeg.start - currentTime);
+      if (secs <= 5) {
+        countdownText = `${secs}`;
       }
     }
   }
 
-  // Show 2 lines before, current, and 2 after
-  const start = Math.max(0, currentSegmentIndex - 2);
-  const end = Math.min(lyrics.length, currentSegmentIndex + 4);
-  const visibleLyrics = currentSegmentIndex >= 0 ? lyrics.slice(start, end) : [];
-
   return (
-    <div style={styles.container}>
-      {/* Show waiting indicator when between vocal sections */}
-      {isInGap && isPlaying && (
-        <div style={styles.waitingContainer}>
-          {nextSegment ? (
-            <>
-              <div style={styles.waitingDots}>
-                <span style={styles.dot1}>.</span>
-                <span style={styles.dot2}>.</span>
-                <span style={styles.dot3}>.</span>
-              </div>
-              <p style={styles.waitingText}>
-                {timeUntilNext > 3
-                  ? `Siguiente en ${timeUntilNext}s...`
-                  : "Preparate..."}
-              </p>
-              <p style={styles.nextPreview}>{nextSegment.text}</p>
-            </>
-          ) : (
-            <p style={styles.waitingText}>Instrumental...</p>
-          )}
-        </div>
+    <div ref={containerRef} style={styles.container}>
+      {/* Countdown dot during short gaps */}
+      {countdownText && (
+        <div style={styles.countdown}>{countdownText}</div>
       )}
 
-      {!isPlaying && currentSegmentIndex === -1 && lyrics.length > 0 && (
+      {!isPlaying && currentSegmentIndex === -1 && lyrics.length > 0 && visibleLyrics.length === 0 && (
         <div style={styles.waitingContainer}>
           <p style={styles.waitingText}>Presiona Cantar para empezar</p>
         </div>
@@ -73,18 +75,20 @@ export default function LyricsDisplay({
       {visibleLyrics.map((seg, i) => {
         const realIndex = start + i;
         const isCurrent = realIndex === currentSegmentIndex;
-        const isPast = realIndex < currentSegmentIndex;
+        const isPast = realIndex < anchorIndex;
+        const isNext = isInGap && realIndex === displaySegmentIndex;
         const speakerColor =
           SPEAKER_COLORS[seg.speaker % SPEAKER_COLORS.length];
 
         return (
           <div
             key={realIndex}
+            ref={isCurrent || isNext ? activeLineRef : undefined}
             style={{
               ...styles.line,
-              opacity: isPast ? 0.3 : isCurrent ? 1 : 0.5,
+              opacity: isPast ? 0.25 : isCurrent ? 1 : isNext ? 0.7 : 0.45,
               transform: isCurrent ? "scale(1.05)" : "scale(1)",
-              transition: "all 0.3s ease",
+              transition: "all 0.4s ease",
             }}
           >
             {/* Romaji line above for Japanese */}
@@ -109,8 +113,10 @@ export default function LyricsDisplay({
                         : isWordPast
                           ? speakerColor
                           : isPast
-                            ? "#555"
-                            : "#999",
+                            ? "#444"
+                            : isNext
+                              ? "#aaa"
+                              : "#888",
                       textShadow: isActiveWord
                         ? `0 0 20px ${speakerColor}, 0 0 40px ${speakerColor}`
                         : "none",
@@ -146,6 +152,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 20,
     padding: "40px 20px",
     minHeight: 300,
+    position: "relative",
   },
   line: {
     textAlign: "center",
@@ -189,31 +196,18 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 12,
   },
-  waitingDots: {
-    fontSize: 40,
-    color: "#4a4ae8",
-    letterSpacing: 8,
-  },
-  dot1: {
-    animation: "none",
-    opacity: 0.3,
-  },
-  dot2: {
-    opacity: 0.6,
-  },
-  dot3: {
-    opacity: 1,
-  },
   waitingText: {
     color: "#555",
     fontSize: 16,
     fontWeight: 600,
   },
-  nextPreview: {
-    color: "#333",
-    fontSize: 20,
+  countdown: {
+    position: "absolute",
+    top: 8,
+    right: 20,
+    fontSize: 14,
+    color: "#4a4ae8",
     fontWeight: 700,
-    fontStyle: "italic",
-    marginTop: 8,
+    opacity: 0.7,
   },
 };

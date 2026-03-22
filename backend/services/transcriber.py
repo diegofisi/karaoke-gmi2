@@ -14,7 +14,7 @@ def get_model():
     return _model
 
 
-def transcribe_vocals(vocals_path: Path, video_id: str) -> dict:
+def transcribe_vocals(vocals_path: Path, video_id: str, language: str | None = None) -> dict:
     output_path = TRANSCRIPTIONS_DIR / f"{video_id}.json"
 
     if output_path.exists():
@@ -22,13 +22,17 @@ def transcribe_vocals(vocals_path: Path, video_id: str) -> dict:
 
     model = get_model()
 
-    result = model.transcribe(
-        str(vocals_path),
-        word_timestamps=True,
-        verbose=False,
-    )
+    transcribe_opts: dict = {
+        "task": "transcribe",
+        "word_timestamps": True,
+        "verbose": False,
+    }
+    if language:
+        transcribe_opts["language"] = language
 
-    language = result.get("language", "en")
+    result = model.transcribe(str(vocals_path), **transcribe_opts)
+
+    language = result.get("language", language or "en")
 
     segments = []
     for seg in result.get("segments", []):

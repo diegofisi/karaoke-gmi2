@@ -6,6 +6,7 @@ DOWNLOADS_DIR = DATA_DIR / "downloads"
 SEPARATED_DIR = DATA_DIR / "separated"
 TRANSCRIPTIONS_DIR = DATA_DIR / "transcriptions"
 PITCH_DIR = DATA_DIR / "pitch"
+LIBRARY_FILE = DATA_DIR / "library.json"
 
 MAX_DURATION_SECONDS = 900  # 15 minutes
 WHISPER_MODEL = "medium"

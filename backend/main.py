@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.routers.songs import router as songs_router
+from backend.services.library import cleanup_orphans
 
 app = FastAPI(title="Karaoke App", version="1.0.0")
+
+# Clean up orphaned data files on startup
+cleanup_orphans()
 
 app.add_middleware(
     CORSMiddleware,

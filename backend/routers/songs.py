@@ -6,6 +6,7 @@ from pathlib import Path
 
 from backend.models.schemas import SongRequest, SongStatus, SongData
 from backend.services.pipeline import jobs, update_job
+from backend.services.library import get_library, load_song_data, delete_from_library
 from backend.tasks.processor import run_processing
 from backend.config import SEPARATED_DIR
 
@@ -23,7 +24,7 @@ async def create_song(request: SongRequest):
         "error": None,
     }
 
-    asyncio.create_task(run_processing(job_id, request.url))
+    asyncio.create_task(run_processing(job_id, request.url, request.language))
 
     return SongStatus(id=job_id, status="pending", progress=0)
 
@@ -43,33 +44,79 @@ async def get_status(job_id: str):
     )
 
 
+@router.get("/library/list")
+async def list_library():
+    return get_library()
+
+
+@router.delete("/library/{video_id}")
+async def delete_library_song(video_id: str):
+    deleted = delete_from_library(video_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Canción no encontrada")
+    # Also remove from in-memory jobs if loaded
+    jobs.pop(video_id, None)
+    return {"ok": True}
+
+
 @router.get("/{job_id}/data")
 async def get_data(job_id: str):
-    if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job no encontrado")
+    # Try in-memory jobs first (active processing)
+    if job_id in jobs:
+        job = jobs[job_id]
+        if job.get("status") != "ready":
+            raise HTTPException(status_code=400, detail=f"Estado actual: {job.get('status')}")
+        return {
+            "id": job_id,
+            "title": job.get("title", ""),
+            "duration": job.get("duration", 0),
+            "language": job.get("language", "en"),
+            "instrumental_url": f"/api/songs/{job_id}/audio/instrumental",
+            "vocals_url": f"/api/songs/{job_id}/audio/vocals",
+            "lyrics": job.get("lyrics", []),
+            "pitch_data": job.get("pitch_data", {}),
+            "speakers_count": job.get("speakers_count", 1),
+        }
 
-    job = jobs[job_id]
+    # Try loading from library (video_id as job_id)
+    song = load_song_data(job_id)
+    if song:
+        # Put it in jobs so audio endpoint works too
+        jobs[job_id] = {
+            "id": job_id,
+            "status": "ready",
+            "progress": 100,
+            **song,
+        }
+        return {
+            "id": job_id,
+            "title": song["title"],
+            "duration": song["duration"],
+            "language": song["language"],
+            "instrumental_url": f"/api/songs/{job_id}/audio/instrumental",
+            "vocals_url": f"/api/songs/{job_id}/audio/vocals",
+            "lyrics": song["lyrics"],
+            "pitch_data": song["pitch_data"],
+            "speakers_count": song["speakers_count"],
+        }
 
-    if job.get("status") != "ready":
-        raise HTTPException(status_code=400, detail=f"Estado actual: {job.get('status')}")
-
-    return {
-        "id": job_id,
-        "title": job.get("title", ""),
-        "duration": job.get("duration", 0),
-        "language": job.get("language", "en"),
-        "instrumental_url": f"/api/songs/{job_id}/audio/instrumental",
-        "vocals_url": f"/api/songs/{job_id}/audio/vocals",
-        "lyrics": job.get("lyrics", []),
-        "pitch_data": job.get("pitch_data", {}),
-        "speakers_count": job.get("speakers_count", 1),
-    }
+    raise HTTPException(status_code=404, detail="Canción no encontrada")
 
 
 @router.get("/{job_id}/audio/{track}")
 async def get_audio(job_id: str, track: str):
+    # If not in memory, try loading from library
     if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job no encontrado")
+        song = load_song_data(job_id)
+        if song:
+            jobs[job_id] = {
+                "id": job_id,
+                "status": "ready",
+                "progress": 100,
+                **song,
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Job no encontrado")
 
     job = jobs[job_id]
 

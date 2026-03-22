@@ -32,6 +32,14 @@ export interface SongStatus {
   error?: string;
 }
 
+export interface LibrarySong {
+  video_id: string;
+  title: string;
+  language: string;
+  duration: number;
+  speakers_count: number;
+}
+
 export interface SongData {
   id: string;
   title: string;

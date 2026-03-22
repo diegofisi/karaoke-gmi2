@@ -5,6 +5,6 @@ from backend.services.pipeline import process_song
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
-async def run_processing(job_id: str, url: str):
+async def run_processing(job_id: str, url: str, language: str | None = None):
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(_executor, process_song, job_id, url)
+    await loop.run_in_executor(_executor, process_song, job_id, url, language)

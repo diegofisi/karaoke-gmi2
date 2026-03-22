@@ -60,7 +60,7 @@ def detect_speakers(vocals_path, segments: list[dict], max_speakers: int = 4) ->
             from sklearn.metrics import silhouette_score
             score = silhouette_score(X, labels)
 
-            if score > best_score and score > 0.15:  # Threshold to avoid false splits
+            if score > best_score and score > 0.35:  # Threshold to avoid false splits
                 best_score = score
                 best_n = n
         except Exception:

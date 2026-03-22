@@ -6,6 +6,7 @@ from backend.services.transcriber import transcribe_vocals
 from backend.services.romaji import add_romaji_to_transcription
 from backend.services.pitch_extractor import extract_pitch
 from backend.services.speaker_detector import detect_speakers
+from backend.services.library import save_to_library
 
 # In-memory job store
 jobs: dict[str, dict] = {}
@@ -16,7 +17,7 @@ def update_job(job_id: str, **kwargs):
         jobs[job_id].update(kwargs)
 
 
-def process_song(job_id: str, url: str):
+def process_song(job_id: str, url: str, language: str | None = None):
     """Full processing pipeline for a YouTube URL."""
     try:
         # Step 1: Download
@@ -35,7 +36,7 @@ def process_song(job_id: str, url: str):
 
         # Step 3: Transcribe lyrics
         update_job(job_id, status="transcribing", progress=55)
-        transcription = transcribe_vocals(vocals_path, video_id)
+        transcription = transcribe_vocals(vocals_path, video_id, language=language)
         update_job(job_id, progress=75)
 
         # Step 4: Romaji conversion (if Japanese)
@@ -65,6 +66,9 @@ def process_song(job_id: str, url: str):
             lyrics=transcription["segments"],
             pitch_data=pitch_data,
         )
+
+        # Save to library for future use
+        save_to_library(jobs[job_id])
 
     except Exception as e:
         traceback.print_exc()

@@ -1,14 +1,21 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { submitSong } from "../utils/api";
+import { submitSong, getLibrary, deleteLibrarySong } from "../utils/api";
+import type { LibrarySong } from "../types";
 
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]+/;
 
 export default function HomePage() {
   const [url, setUrl] = useState("");
+  const [language, setLanguage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [library, setLibrary] = useState<LibrarySong[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getLibrary().then(setLibrary);
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -21,7 +28,7 @@ export default function HomePage() {
 
     setLoading(true);
     try {
-      const result = await submitSong(url);
+      const result = await submitSong(url, language || undefined);
       navigate(`/processing/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -51,6 +58,21 @@ export default function HomePage() {
           style={styles.input}
           disabled={loading}
         />
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          style={styles.langSelect}
+          disabled={loading}
+        >
+          <option value="">Idioma (auto)</option>
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="ko">한국어</option>
+          <option value="zh">中文</option>
+          <option value="fr">Français</option>
+          <option value="pt">Português</option>
+        </select>
         <button type="submit" style={styles.button} disabled={loading}>
           {loading ? "Procesando..." : "¡Cantar!"}
         </button>
@@ -74,6 +96,44 @@ export default function HomePage() {
           </div>
         ))}
       </div>
+
+      {/* Library section */}
+      {library.length > 0 && (
+        <div style={styles.librarySection}>
+          <h3 style={styles.libraryTitle}>Canciones procesadas</h3>
+          <div style={styles.libraryGrid}>
+            {library.map((song) => (
+              <div key={song.video_id} style={styles.libraryRow}>
+                <button
+                  style={styles.libraryCard}
+                  onClick={() => navigate(`/karaoke/${song.video_id}`)}
+                >
+                  <span style={styles.libraryCardTitle}>{song.title}</span>
+                  <div style={styles.libraryCardMeta}>
+                    <span style={styles.libraryLang}>{song.language.toUpperCase()}</span>
+                    <span style={styles.libraryDuration}>
+                      {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, "0")}
+                    </span>
+                    {song.speakers_count > 1 && (
+                      <span style={styles.librarySpeakers}>{song.speakers_count} voces</span>
+                    )}
+                  </div>
+                </button>
+                <button
+                  style={styles.deleteBtn}
+                  title="Borrar y re-procesar"
+                  onClick={async () => {
+                    await deleteLibrarySong(song.video_id);
+                    setLibrary((prev) => prev.filter((s) => s.video_id !== song.video_id));
+                  }}
+                >
+                  X
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,6 +191,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     transition: "border-color 0.2s",
   },
+  langSelect: {
+    padding: "14px 10px",
+    borderRadius: 12,
+    border: "2px solid #2a2a4a",
+    background: "#12122a",
+    color: "#fff",
+    fontSize: 14,
+    cursor: "pointer",
+  },
   button: {
     padding: "14px 32px",
     borderRadius: 12,
@@ -167,4 +236,87 @@ const styles: Record<string, React.CSSProperties> = {
   },
   featureIcon: { fontSize: 28, marginBottom: 4 },
   featureDesc: { color: "#666", fontSize: 12 },
+  librarySection: {
+    width: "100%",
+    maxWidth: 700,
+    marginTop: 48,
+  },
+  libraryTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#aaa",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  libraryGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  libraryRow: {
+    display: "flex",
+    gap: 6,
+    alignItems: "stretch",
+  },
+  libraryCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "14px 20px",
+    background: "#12122a",
+    border: "1px solid #1e1e3a",
+    borderRadius: 10,
+    cursor: "pointer",
+    transition: "border-color 0.2s, background 0.2s",
+    textAlign: "left",
+    color: "#ddd",
+    width: "100%",
+  },
+  libraryCardTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    flex: 1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    marginRight: 12,
+  },
+  libraryCardMeta: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  libraryLang: {
+    fontSize: 10,
+    padding: "2px 6px",
+    borderRadius: 4,
+    background: "#1e1e3a",
+    color: "#4a4ae8",
+    fontWeight: 700,
+  },
+  libraryDuration: {
+    fontSize: 12,
+    color: "#666",
+    fontFamily: "monospace",
+  },
+  librarySpeakers: {
+    fontSize: 10,
+    padding: "2px 6px",
+    borderRadius: 4,
+    background: "#1e1e3a",
+    color: "#e84aad",
+  },
+  deleteBtn: {
+    padding: "0 12px",
+    borderRadius: 10,
+    background: "transparent",
+    border: "1px solid #e84a4a33",
+    color: "#e84a4a",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "background 0.2s",
+    flexShrink: 0,
+  },
 };

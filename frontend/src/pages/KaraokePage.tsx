@@ -69,7 +69,7 @@ export default function KaraokePage() {
     setUserTranscript(speech.currentTranscript || speech.finalTranscript.split(" ").slice(-8).join(" "));
   }, [speech.currentTranscript, speech.finalTranscript]);
 
-  const { currentSegmentIndex, currentWordIndex, update: updateLyrics } =
+  const { currentSegmentIndex, currentWordIndex, displaySegmentIndex, isInGap, update: updateLyrics } =
     useLyricsSync(lyrics);
 
   // Load song data
@@ -359,6 +359,8 @@ export default function KaraokePage() {
           lyrics={lyrics}
           currentSegmentIndex={currentSegmentIndex}
           currentWordIndex={currentWordIndex}
+          displaySegmentIndex={displaySegmentIndex}
+          isInGap={isInGap}
           language={songData.language}
           isPlaying={isPlaying}
           currentTime={currentTime}

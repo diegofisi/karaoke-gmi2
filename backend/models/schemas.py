@@ -5,6 +5,7 @@ import re
 
 class SongRequest(BaseModel):
     url: str
+    language: Optional[str] = None  # "ja", "en", "es", etc. None = auto-detect
 
     @field_validator("url")
     @classmethod
